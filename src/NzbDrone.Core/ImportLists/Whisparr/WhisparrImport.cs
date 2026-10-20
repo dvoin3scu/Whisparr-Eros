@@ -57,12 +57,25 @@ namespace NzbDrone.Core.ImportLists.Whisparr
                         continue;
                     }
 
-                    movies.Add(new ImportListMovie
+                    var listMovie = new ImportListMovie
                     {
                         ForeignId = remoteMovie.ForeignId,
                         Title = remoteMovie.Title,
                         Year = remoteMovie.Year
-                    });
+                    };
+
+                    // Mapping only reads TmdbId and StashId, so carry the remote id over;
+                    // without it, scenes fall back to a movie title search and are never added.
+                    if (remoteMovie.TmdbId > 0)
+                    {
+                        listMovie.TmdbId = remoteMovie.TmdbId;
+                    }
+                    else if (Guid.TryParse(remoteMovie.ForeignId, out _))
+                    {
+                        listMovie.StashId = remoteMovie.ForeignId;
+                    }
+
+                    movies.Add(listMovie);
                 }
 
                 _importListStatusService.RecordSuccess(Definition.Id);
