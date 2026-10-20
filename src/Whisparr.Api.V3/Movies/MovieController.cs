@@ -780,6 +780,13 @@ namespace Whisparr.Api.V3.Movies
             LinkMovieStatistics(resource, _movieStatisticsService.MovieStatistics(resource.Id));
             MapCoversToLocal(resource);
 
+            // RootFolderPath isn't stored, so fill it like the list endpoints do; clients that
+            // PUT back a GET /movie/{id} (e.g. Stasharr) otherwise see it missing.
+            if (resource.Path.IsNotNullOrWhiteSpace())
+            {
+                resource.RootFolderPath = _rootFolderService.GetBestRootFolderPath(resource.Path);
+            }
+
             return resource;
         }
 

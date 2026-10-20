@@ -1,0 +1,54 @@
+name: GHCR release
+
+# Builds Whisparr.Core.dll and Whisparr.Api.V3.dll from this fork and publishes ghcr.io/<owner>/whisparr:<release tag>,
+# based on hotio's image of the same upstream release. Runs on the fork only.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # Must match the upstream release this branch is based on.
+  BASE_IMAGE: ghcr.io/hotio/whisparr:v3-3.6.5-release.1886
+  ASSEMBLY_VERSION: 3.6.5.1886
+  RUNTIME: linux-musl-x64
+
+jobs:
+  image:
+    if: github.repository_owner != 'Whisparr'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Build backend
+        run: |
+          sed -i -e "s/<AssemblyVersion>[0-9.*]\+<\/AssemblyVersion>/<AssemblyVersion>${ASSEMBLY_VERSION}<\/AssemblyVersion>/g" src/Directory.Build.props
+          dotnet msbuild -restore src/Whisparr.sln -p:SelfContained=true -p:Configuration=Release -p:Platform=Posix -p:RuntimeIdentifiers=${RUNTIME} -p:EnableWindowsTargeting=true -p:NuGetAudit=false -t:PublishAllRids
+          cp _output/net10.0/${RUNTIME}/publish/Whisparr.Core.dll _output/net10.0/${RUNTIME}/publish/Whisparr.Api.V3.dll .github/ghcr/
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .github/ghcr
+          platforms: linux/amd64
+          push: true
+          build-args: BASE_IMAGE=${{ env.BASE_IMAGE }}
+          tags: ghcr.io/${{ github.repository_owner }}/whisparr:${{ github.event.release.tag_name }}
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
